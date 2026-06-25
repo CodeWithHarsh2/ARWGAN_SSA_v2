@@ -40,6 +40,15 @@ def train(model: ARWGAN,
             message = torch.Tensor(np.random.choice([0, 1], (image.shape[0], net_config.message_length))).to(device)
             losses, _ = model.train_on_batch([image, message])
 
+            # Save checkpoint every 500 training steps
+            if step % 500 == 0:
+                utils.save_checkpoint(
+                    model,
+                    train_options.experiment_name,
+                    epoch,
+                    os.path.join(this_run_folder, "checkpoints")
+                )
+                
             for name, loss in losses.items():
                 training_losses[name].update(loss)
             if step % print_each == 0 or step == steps_in_epoch:

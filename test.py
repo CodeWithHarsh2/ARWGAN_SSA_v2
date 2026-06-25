@@ -4,6 +4,8 @@ import os
 import math
 import utils
 from model.ARWGAN import *
+import numpy as np
+import torch
 from noise_argparser import NoiseArgParser
 from noise_layers.noiser import Noiser
 from PIL import Image
@@ -57,13 +59,17 @@ def main():
     noise_config = args.noise
     noiser = Noiser(noise_config, device)
 
-    checkpoint = torch.load(args.checkpoint_file)
+    checkpoint = torch.load(
+    args.checkpoint_file,
+    map_location=torch.device('cpu'))
     hidden_net = ARWGAN(net_config, device, noiser, None)
     utils.model_from_checkpoint(hidden_net, checkpoint)
     source_images = os.listdir(args.source_images)
 
+    total_error = 0
+    count = 0
     for source_image in source_images:
-        image_pil = Image.open(args.source_images + source_image)
+        image_pil = Image.open(os.path.join(args.source_images, source_image))
         image_pil = image_pil.resize((net_config.H, net_config.W))
         image_tensor = TF.to_tensor(image_pil).to(device)
         image_tensor = image_tensor * 2 - 1
@@ -79,9 +85,15 @@ def main():
         message_detached = message.detach().cpu().numpy()
         print('original: {}'.format(message_detached))
         print('decoded : {}'.format(decoded_rounded))
-        print('error : {:.3f}'.format(np.mean(np.abs(decoded_rounded - message_detached))))
+        err = np.mean(np.abs(decoded_rounded - message_detached))
+        print('error : {:.3f}'.format(err))
 
-    utils.save_images(image_tensor.cpu(), encoded_images.cpu(), 'test', '.', resize_to=(128, 128))
+        total_error += err
+        count += 1
+    
+    print("\nAverage BER:", total_error / count)
+
+    #utils.save_images(image_tensor.cpu(), encoded_images.cpu(), 'test', '.', resize_to=(128, 128))
 
 
 if __name__ == '__main__':

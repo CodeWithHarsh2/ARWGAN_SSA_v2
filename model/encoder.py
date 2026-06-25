@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from options import HiDDenConfiguration
 from model.Dense_block import Bottleneck
+from model.ssa_utils import sparse_topk_mask
 
 
 class Encoder(nn.Module):
@@ -92,16 +93,28 @@ class Encoder(nn.Module):
         feature2 = self.Dense_block2(torch.cat((feature0, expanded_message, feature1), 1), last=True)
         feature3 = self.Dense_block3(torch.cat((feature0, expanded_message, feature1, feature2), 1), last=True)
         feature3 = self.fivth_layer(torch.cat((feature3, expanded_message), 1))
-        feature_attention = self.Dense_block_a3(self.Dense_block_a2(self.Dense_block_a1(feature0)), last=True)
-        feature_mask = (self.sixth_layer(feature_attention)) * 30
-        feature = feature3 * feature_mask
+        feature_attention = self.Dense_block_a3(
+            self.Dense_block_a2(
+                self.Dense_block_a1(feature0)
+            ),
+            last=True
+        )
+
+        full_mask = self.sixth_layer(feature_attention)
+
+        sparse_mask = sparse_topk_mask(
+            full_mask,
+            ratio=0.2
+        )
+
+        feature = feature3 * sparse_mask * 30
+
         im_w = self.final_layer(feature)
+
         im_w = im_w + image
-        return im_w
 
-
-
-
-
-
-
+        return (
+            im_w,
+            full_mask,
+            sparse_mask
+        )

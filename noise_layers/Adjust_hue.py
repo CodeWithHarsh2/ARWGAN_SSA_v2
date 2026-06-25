@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from kornia.color.adjust import AdjustHue,AdjustSaturation,AdjustContrast,AdjustBrightness,AdjustGamma
+import torch.nn as nn
 import math
 from torchvision.transforms import ToPILImage
 class Adjust_hue(nn.Module):
@@ -10,6 +10,6 @@ class Adjust_hue(nn.Module):
 
     def forward(self, noised_and_cover):
         encoded=((noised_and_cover[0]).clone())
-        encoded=AdjustSaturation(saturation_factor=self.factor)(encoded)
+        encoded = encoded
         noised_and_cover[0]=(encoded)
         return noised_and_cover
