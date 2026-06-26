@@ -74,10 +74,9 @@ class Encoder(nn.Module):
             nn.BatchNorm2d(self.conv_channels),
             nn.ReLU(inplace=True),
             self.conv2(self.conv_channels, config.message_length),
-            nn.Softmax(dim=1)
+            nn.Sigmoid()
         )
-        self.softmax = nn.Sequential(nn.Softmax(dim=1))
-
+        
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
                                          )
 
@@ -100,25 +99,14 @@ class Encoder(nn.Module):
             last=True
         )
 
-        # Soft attention map
-        soft_mask = self.sixth_layer(feature_attention)
+        attention = self.sixth_layer(feature_attention)
 
-        # Dense feature branch
-        dense_feature = feature3
+        feature = feature3 * attention
 
-        # Sparse feature branch
-        sparse_feature = feature3 * soft_mask
-
-        # Adaptive fusion
-        fusion_feature = dense_feature + sparse_feature
-
-        # Watermarked image
-        im_w = self.final_layer(fusion_feature)
+        im_w = self.final_layer(feature)
         im_w = im_w + image
 
         return (
             im_w,
-            dense_feature,
-            sparse_feature,
-            soft_mask
+            attention
         )
