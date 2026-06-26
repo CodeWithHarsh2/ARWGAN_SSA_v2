@@ -37,7 +37,6 @@ class ARWGAN:
         self.mse_weight = 0.7
         self.ssim_weight = 0.1
         self.decode_weight = 1.5
-        
 
         # Defined the labels used for training the discriminator/adversarial loss
         self.cover_label = 1
@@ -73,12 +72,8 @@ class ARWGAN:
             d_loss_on_cover = self.bce_with_logits_loss(d_on_cover, (d_target_label_cover).float())
             d_loss_on_cover.backward()
 
-            (
-                encoded_images,
-                noised_images,
-                decoded_messages,
-                attention
-            ) = self.encoder_decoder(batch)
+            # train on fake
+            encoded_images, noised_images, decoded_messages, attention = self.encoder_decoder(batch)
             d_on_encoded = self.discriminator(encoded_images.detach())
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, (d_target_label_encoded).float())
 
@@ -99,15 +94,8 @@ class ARWGAN:
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
             g_loss_enc_ssim = self.ssim_loss(encoded_images, images)
             g_loss_dec = self.mse_loss(decoded_messages, messages)
-            
-
-            g_loss = (
-                self.adversarial_weight * g_loss_adv
-                + self.ssim_weight * (1 - g_loss_enc_ssim)
-                + self.mse_weight * g_loss_enc
-                + self.decode_weight * g_loss_dec
-                
-            )
+            g_loss = self.adversarial_weight * g_loss_adv + self.ssim_weight * (
+                        1 - g_loss_enc_ssim) + self.mse_weight * (g_loss_enc) + self.decode_weight * (g_loss_dec)
 
             g_loss.backward()
 
@@ -126,7 +114,6 @@ class ARWGAN:
             'discr_cover_bce': d_loss_on_cover.item(),
             'discr_encod_bce': d_loss_on_encoded.item(),
             'encoded_ssim   ': g_loss_enc_ssim.item(),
-            
 
         }
         return losses, (encoded_images, noised_images, decoded_messages)
@@ -148,12 +135,7 @@ class ARWGAN:
             d_on_cover = self.discriminator(images)
             d_loss_on_cover = self.bce_with_logits_loss(d_on_cover, d_target_label_cover.float())
 
-            (
-                encoded_images,
-                noised_images,
-                decoded_messages,
-                attention
-            ) = self.encoder_decoder(batch)
+            encoded_images, noised_images, decoded_messages, attention = self.encoder_decoder(batch)
 
             d_on_encoded = self.discriminator(encoded_images)
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, d_target_label_encoded.float())
@@ -168,15 +150,8 @@ class ARWGAN:
                 vgg_on_enc = self.vgg_loss(encoded_images)
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
             g_loss_dec = self.mse_loss(decoded_messages, messages)
-            
-            
-            g_loss = (
-                self.adversarial_weight * g_loss_adv
-                + self.ssim_weight * (1 - g_loss_enc_ssim)
-                + self.mse_weight * g_loss_enc
-                + self.decode_weight * g_loss_dec
-                
-            )
+            g_loss = self.adversarial_weight * g_loss_adv + self.ssim_weight * (
+                        1 - g_loss_enc_ssim) + self.mse_weight * (g_loss_enc) + self.decode_weight * (g_loss_dec)
         decoded_rounded = decoded_messages.detach().cpu().numpy().round().clip(0, 1)
         bitwise_avg_err = np.sum(np.abs(decoded_rounded - messages.detach().cpu().numpy())) / (
                 batch_size * messages.shape[1])
@@ -191,8 +166,7 @@ class ARWGAN:
             'discr_encod_bce': d_loss_on_encoded.item(),
             'encoded_ssim   ': g_loss_enc_ssim.item(),
             'PSNR           ': 10 * torch.log10(4 / g_loss_enc).item(),
-            'ssim           ': 1 - g_loss_enc_ssim,
-           
+            'ssim           ': 1 - g_loss_enc_ssim
         }
         return losses, (encoded_images, noised_images, decoded_messages)
 
