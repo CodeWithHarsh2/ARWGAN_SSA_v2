@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from options import HiDDenConfiguration
 from model.Dense_block import Bottleneck
-from model.ssa_utils import sparse_topk_mask
+
 
 
 class Encoder(nn.Module):
@@ -100,21 +100,25 @@ class Encoder(nn.Module):
             last=True
         )
 
-        full_mask = self.sixth_layer(feature_attention)
+        # Soft attention map
+        soft_mask = self.sixth_layer(feature_attention)
 
-        sparse_mask = sparse_topk_mask(
-            full_mask,
-            ratio=0.2
-        )
+        # Dense feature branch
+        dense_feature = feature3
 
-        feature = feature3 * sparse_mask * 30
+        # Sparse feature branch
+        sparse_feature = feature3 * soft_mask
 
-        im_w = self.final_layer(feature)
+        # Adaptive fusion
+        fusion_feature = dense_feature + sparse_feature
 
+        # Watermarked image
+        im_w = self.final_layer(fusion_feature)
         im_w = im_w + image
 
         return (
             im_w,
-            full_mask,
-            sparse_mask
+            dense_feature,
+            sparse_feature,
+            soft_mask
         )

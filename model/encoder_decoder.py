@@ -25,7 +25,7 @@ class EncoderDecoder(nn.Module):
 
     def forward(self,batch):
         image, message=batch
-        encoded_image, full_mask, sparse_mask = self.encoder(
+        encoded_image, dense_feature, sparse_feature, soft_mask = self.encoder(
             image,
             message
         )
@@ -39,6 +39,7 @@ class EncoderDecoder(nn.Module):
             encoded_image,
             noised_image,
             decoded_message_m,
-            full_mask,
-            sparse_mask
+            dense_feature,
+            sparse_feature,
+            soft_mask
         )
