@@ -33,6 +33,7 @@ class ARWGAN:
         self.ssim_loss = SSIM()
         self.bce_with_logits_loss = nn.BCEWithLogitsLoss().to(device)
         self.mse_loss = nn.MSELoss().to(device)
+        self.smooth_l1_loss = nn.SmoothL1Loss().to(device)
         self.adversarial_weight = 0.001
         self.mse_weight = 0.7
         self.ssim_weight = 0.1
@@ -73,13 +74,13 @@ class ARWGAN:
             d_loss_on_cover = self.bce_with_logits_loss(d_on_cover, (d_target_label_cover).float())
             d_loss_on_cover.backward()
 
-            # train on fake
             (
                 encoded_images,
                 noised_images,
                 decoded_messages,
-                full_mask,
-                sparse_mask
+                dense_feature,
+                sparse_feature,
+                soft_mask
             ) = self.encoder_decoder(batch)
             d_on_encoded = self.discriminator(encoded_images.detach())
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, (d_target_label_encoded).float())
@@ -101,8 +102,12 @@ class ARWGAN:
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
             g_loss_enc_ssim = self.ssim_loss(encoded_images, images)
             g_loss_dec = self.mse_loss(decoded_messages, messages)
-            # Penalize attention outside the selected Top-K locations
-            ssa_loss = (full_mask * (1.0 - sparse_mask)).mean()
+            
+            # Dense–Sparse feature alignment
+            ssa_loss = self.smooth_l1_loss(
+                dense_feature,
+                sparse_feature
+            )
             g_loss = (
                 self.adversarial_weight * g_loss_adv
                 + self.ssim_weight * (1 - g_loss_enc_ssim)
@@ -154,8 +159,9 @@ class ARWGAN:
                 encoded_images,
                 noised_images,
                 decoded_messages,
-                full_mask,
-                sparse_mask
+                dense_feature,
+                sparse_feature,
+                soft_mask
             )= self.encoder_decoder(batch)
 
             d_on_encoded = self.discriminator(encoded_images)
@@ -171,8 +177,11 @@ class ARWGAN:
                 vgg_on_enc = self.vgg_loss(encoded_images)
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
             g_loss_dec = self.mse_loss(decoded_messages, messages)
-            # Penalize attention outside the selected Top-K locations
-            ssa_loss = (full_mask * (1.0 - sparse_mask)).mean()
+            
+            ssa_loss = self.smooth_l1_loss(
+                dense_feature,
+                sparse_feature
+            )
             g_loss = (
                 self.adversarial_weight * g_loss_adv
                 + self.ssim_weight * (1 - g_loss_enc_ssim)
