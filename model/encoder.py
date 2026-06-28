@@ -96,7 +96,11 @@ class Encoder(nn.Module):
         feature3 = self.fivth_layer(torch.cat((feature3, expanded_message), 1))
         feature_attention = self.Dense_block_a3(self.Dense_block_a2(self.Dense_block_a1(feature0)), last=True)
         feature_mask = (self.sixth_layer(feature_attention)) * 30
-        print(feature_mask.shape)
+        print("feature0        :", feature0.shape)
+        print("feature3        :", feature3.shape)
+        print("feature_attention:", feature_attention.shape)
+        print("feature_mask    :", feature_mask.shape)
+        
         feature = feature3 * feature_mask
         im_w = self.final_layer(feature)
         im_w = im_w + image
