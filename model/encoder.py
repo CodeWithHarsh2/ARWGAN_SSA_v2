@@ -76,25 +76,7 @@ class Encoder(nn.Module):
             nn.Softmax(dim=1)
         )
         self.softmax = nn.Sequential(nn.Softmax(dim=1))
-        # ======================================================
-        # EPSCM-v2
-        # Spatial Attention Refinement
-        # ======================================================
-
-        self.spatial_conv = nn.Sequential(
-            nn.Conv2d(
-                in_channels=1,
-                out_channels=1,
-                kernel_size=7,
-                padding=3,
-                bias=False
-            ),
-            nn.Sigmoid()
-        )
-
-        # Residual modulation strength
-        self.alpha = nn.Parameter(torch.tensor(0.0))
-
+        
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
                                          )
 
@@ -110,53 +92,13 @@ class Encoder(nn.Module):
         feature2 = self.Dense_block2(torch.cat((feature0, expanded_message, feature1), 1), last=True)
         feature3 = self.Dense_block3(torch.cat((feature0, expanded_message, feature1, feature2), 1), last=True)
         feature3 = self.fivth_layer(torch.cat((feature3, expanded_message), 1))
-        feature_attention = self.Dense_block_a3(
-            self.Dense_block_a2(
-                self.Dense_block_a1(feature0)
-            ),
-            last=True
-        )
-
-        # ======================================================
-        # EPSCM-v2
-        # Residual Spatial Attention Refinement
-        # ======================================================
-
-        # Global spatial descriptor
-        spatial_map = torch.mean(
-            feature_attention,
-            dim=1,
-            keepdim=True
-        )
-
-        # Learn spatial importance
-        spatial_map = self.spatial_conv(spatial_map)
-
-        # Normalize around 1
-        spatial_map = spatial_map / (
-            spatial_map.mean(
-                dim=(2, 3),
-                keepdim=True
-            ) + 1e-6
-        )
-
-        # Residual refinement
-        feature_attention = feature_attention * (
-            1.0 + self.alpha * (spatial_map - 1.0)
-        )
-
-        feature_mask = self.sixth_layer(feature_attention) * 30
-
+        feature_attention = self.Dense_block_a3(self.Dense_block_a2(self.Dense_block_a1(feature0)), last=True)
+        feature_mask = (self.sixth_layer(feature_attention)) * 30
         feature = feature3 * feature_mask
-
         im_w = self.final_layer(feature)
-
         im_w = im_w + image
-
-        if self.training:
-            print(f"alpha = {self.alpha.item():.6f}")
-
         return im_w
+
 
 
 

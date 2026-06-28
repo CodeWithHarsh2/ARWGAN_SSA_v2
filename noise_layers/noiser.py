@@ -35,4 +35,5 @@ class Noiser(nn.Module):
         # print(random_noise_layer)
         return random_noise_layer(encoded_and_cover)
 
+    
 
