@@ -77,14 +77,36 @@ class Encoder(nn.Module):
         )
         self.softmax = nn.Sequential(nn.Softmax(dim=1))
 
+        # -------------------------------
+        # Cross-Gated Message Modulation
+        # -------------------------------
+        self.message_gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),              # B x C x 1 x 1
+            nn.Flatten(),                         # B x C
+            nn.Linear(self.conv_channels, self.conv_channels // 2),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.conv_channels // 2, config.message_length),
+            nn.Sigmoid()
+        )
+
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
                                          )
 
     def forward(self, image, message):
         H, W = image.size()[2], image.size()[3]
 
-        expanded_message = message.unsqueeze(-1)
-        expanded_message.unsqueeze_(-1)
+        feature0 = self.first_layer(image)
+
+        # -------------------------------------------------
+        # Cross-Gated Message Modulation (CGMM)
+        # -------------------------------------------------
+        gate = self.message_gate(feature0)
+
+        # Residual gating keeps behaviour close to baseline
+        adaptive_message = message * (1.0 + gate)
+
+        expanded_message = adaptive_message.unsqueeze(-1)
+        expanded_message = expanded_message.unsqueeze(-1)
         expanded_message = expanded_message.expand(-1, -1, H, W)
 
         feature0 = self.first_layer(image)
