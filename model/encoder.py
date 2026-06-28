@@ -77,16 +77,11 @@ class Encoder(nn.Module):
         )
         self.softmax = nn.Sequential(nn.Softmax(dim=1))
 
-        # -------------------------------
-        # Cross-Gated Message Modulation
-        # -------------------------------
-        self.message_gate = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),              # B x C x 1 x 1
-            nn.Flatten(),                         # B x C
-            nn.Linear(self.conv_channels, self.conv_channels // 2),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.conv_channels // 2, config.message_length),
-            nn.Sigmoid()
+        # --------------------------------------------------
+        # Feature-wise Message Modulation (FiLM)
+        # --------------------------------------------------
+        self.film = nn.Sequential(
+            nn.Linear(config.message_length, self.conv_channels * 2)
         )
 
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
@@ -97,19 +92,22 @@ class Encoder(nn.Module):
 
         feature0 = self.first_layer(image)
 
-        # -------------------------------------------------
-        # Cross-Gated Message Modulation (CGMM)
-        # -------------------------------------------------
-        gate = self.message_gate(feature0)
+        # --------------------------------------------------
+        # FiLM conditioning
+        # --------------------------------------------------
+        film = self.film(message)
 
-        # Residual gating keeps behaviour close to baseline
-        adaptive_message = message * (1.0 + gate)
+        gamma, beta = torch.chunk(film, 2, dim=1)
 
-        expanded_message = adaptive_message.unsqueeze(-1)
+        gamma = gamma.unsqueeze(-1).unsqueeze(-1)
+        beta = beta.unsqueeze(-1).unsqueeze(-1)
+
+        # Residual initialization
+        feature0 = feature0 * (1.0 + 0.1 * torch.tanh(gamma)) + 0.1 * beta
+
+        expanded_message = message.unsqueeze(-1)
         expanded_message = expanded_message.unsqueeze(-1)
         expanded_message = expanded_message.expand(-1, -1, H, W)
-
-        feature0 = self.first_layer(image)
         feature1 = self.Dense_block1(torch.cat((feature0, expanded_message), 1), last=True)
         feature2 = self.Dense_block2(torch.cat((feature0, expanded_message, feature1), 1), last=True)
         feature3 = self.Dense_block3(torch.cat((feature0, expanded_message, feature1, feature2), 1), last=True)
