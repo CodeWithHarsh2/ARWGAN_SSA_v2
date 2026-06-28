@@ -77,10 +77,7 @@ class Encoder(nn.Module):
         )
         self.softmax = nn.Sequential(nn.Softmax(dim=1))
 
-        # ---------------------------------------------
-        # Cross Attention Guidance
-        # ---------------------------------------------
-        self.alpha = nn.Parameter(torch.tensor(0.1))
+        
 
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
                                          )
@@ -97,19 +94,9 @@ class Encoder(nn.Module):
         feature2 = self.Dense_block2(torch.cat((feature0, expanded_message, feature1), 1), last=True)
         feature3 = self.Dense_block3(torch.cat((feature0, expanded_message, feature1, feature2), 1), last=True)
         feature3 = self.fivth_layer(torch.cat((feature3, expanded_message), 1))
-        feature_attention = self.Dense_block_a3(
-            self.Dense_block_a2(
-                self.Dense_block_a1(feature0)
-            ),
-            last=True
-        )
-
-        # ---------------------------------------------
-        # Cross Attention Guidance Module (CAGM)
-        # ---------------------------------------------
-        guided_attention = feature_attention + self.alpha * feature3
-
-        feature_mask = self.sixth_layer(guided_attention) * 30
+        feature_attention = self.Dense_block_a3(self.Dense_block_a2(self.Dense_block_a1(feature0)), last=True)
+        feature_mask = (self.sixth_layer(feature_attention)) * 30
+        print(feature_mask.shape)
         feature = feature3 * feature_mask
         im_w = self.final_layer(feature)
         im_w = im_w + image
