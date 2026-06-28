@@ -267,7 +267,7 @@ class JpegCompression(nn.Module):
 
         image_conv_channels = []
         for channel in range(image.shape[1]):
-            image_yuv_ch = image[:, channel, :, :].unsqueeze_(1)
+            image_yuv_ch = image[:, channel, :, :].unsqueeze(1)
             image_conv = F.conv2d(image_yuv_ch, filters, stride=8)
             image_conv = image_conv.permute(0, 2, 3, 1)
             image_conv = image_conv.view(image_conv.shape[0], image_conv.shape[1], image_conv.shape[2], 8, 8)
@@ -276,7 +276,7 @@ class JpegCompression(nn.Module):
                                                   image_conv.shape[1]*image_conv.shape[2],
                                                   image_conv.shape[3]*image_conv.shape[4])
 
-            image_conv.unsqueeze_(1)
+            image_conv = image_conv.unsqueeze(1)
 
             # image_conv = F.conv2d()
             image_conv_channels.append(image_conv)
@@ -317,5 +317,11 @@ class JpegCompression(nn.Module):
         yuv2rgb(image_idct, image_ret_padded)
 
         # un-pad
-        noised_and_cover[0] = image_ret_padded[:, :, :image_ret_padded.shape[2]-pad_height, :image_ret_padded.shape[3]-pad_width].clone()
-        return noised_and_cover
+        noised_image = image_ret_padded[
+            :,
+            :,
+            :image_ret_padded.shape[2] - pad_height,
+            :image_ret_padded.shape[3] - pad_width
+        ]
+
+        return [noised_image, noised_and_cover[1]]
