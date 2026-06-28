@@ -4,7 +4,6 @@ from options import HiDDenConfiguration
 from model.Dense_block import Bottleneck
 
 
-
 class Encoder(nn.Module):
 
     def conv1(self, in_channel, out_channel):
@@ -76,7 +75,8 @@ class Encoder(nn.Module):
             self.conv2(self.conv_channels, config.message_length),
             nn.Softmax(dim=1)
         )
-        
+        self.softmax = nn.Sequential(nn.Softmax(dim=1))
+
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
                                          )
 
@@ -90,37 +90,18 @@ class Encoder(nn.Module):
         feature0 = self.first_layer(image)
         feature1 = self.Dense_block1(torch.cat((feature0, expanded_message), 1), last=True)
         feature2 = self.Dense_block2(torch.cat((feature0, expanded_message, feature1), 1), last=True)
-        feature3 = self.Dense_block3(
-            torch.cat((feature0, expanded_message, feature1, feature2), 1),
-            last=True
-        )
-
-        feature3_attention = feature3
-
-        feature3 = self.fivth_layer(
-            torch.cat((feature3, expanded_message), 1)
-        )
-        attention_input = (
-            feature0 +
-            feature1 +
-            feature2 +
-            feature3_attention
-        )
-        feature_attention = self.Dense_block_a3(
-            self.Dense_block_a2(
-                self.Dense_block_a1(attention_input)
-            ),
-            last=True
-        )
-
-        attention = self.sixth_layer(feature_attention)
-
-        feature = feature3 * attention
-
+        feature3 = self.Dense_block3(torch.cat((feature0, expanded_message, feature1, feature2), 1), last=True)
+        feature3 = self.fivth_layer(torch.cat((feature3, expanded_message), 1))
+        feature_attention = self.Dense_block_a3(self.Dense_block_a2(self.Dense_block_a1(feature0)), last=True)
+        feature_mask = (self.sixth_layer(feature_attention)) * 30
+        feature = feature3 * feature_mask
         im_w = self.final_layer(feature)
         im_w = im_w + image
+        return im_w
 
-        return (
-            im_w,
-            attention
-        )
+
+
+
+
+
+

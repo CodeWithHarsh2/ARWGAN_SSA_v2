@@ -73,7 +73,7 @@ class ARWGAN:
             d_loss_on_cover.backward()
 
             # train on fake
-            encoded_images, noised_images, decoded_messages, attention = self.encoder_decoder(batch)
+            encoded_images, noised_images, decoded_messages = self.encoder_decoder(batch)
             d_on_encoded = self.discriminator(encoded_images.detach())
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, (d_target_label_encoded).float())
 
@@ -135,7 +135,7 @@ class ARWGAN:
             d_on_cover = self.discriminator(images)
             d_loss_on_cover = self.bce_with_logits_loss(d_on_cover, d_target_label_cover.float())
 
-            encoded_images, noised_images, decoded_messages, attention = self.encoder_decoder(batch)
+            encoded_images, noised_images, decoded_messages = self.encoder_decoder(batch)
 
             d_on_encoded = self.discriminator(encoded_images)
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, d_target_label_encoded.float())
