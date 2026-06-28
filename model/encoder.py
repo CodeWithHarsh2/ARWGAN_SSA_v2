@@ -147,6 +147,17 @@ class Encoder(nn.Module):
 
         feature_mask = self.sixth_layer(feature_attention) * 30
 
+        feature = feature3 * feature_mask
+
+        im_w = self.final_layer(feature)
+
+        im_w = im_w + image
+
+        if self.training:
+            print(f"alpha = {self.alpha.item():.6f}")
+
+        return im_w
+
 
 
 
