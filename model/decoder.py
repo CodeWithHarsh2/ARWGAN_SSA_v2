@@ -52,28 +52,11 @@ class Decoder(nn.Module):
         self.linear = nn.Linear(config.message_length, config.message_length)
 
     def forward(self, image_with_wm):
-
         feature0 = self.first_layer(image_with_wm)
-
         feature1 = self.second_layer(feature0)
-
-        feature2 = self.third_layer(
-            torch.cat([feature0, feature1], dim=1)
-        )
-
-        feature3 = self.fourth_layer(
-            torch.cat([feature0, feature1, feature2], dim=1)
-        )
-
-        # -----------------------------
-        # Watermark representation
-        # -----------------------------
-        representation = self.fivth_layer(feature3)
-
-        pooled = self.pooling(representation)
-
-        decoded_message = self.linear(
-            pooled.squeeze(3).squeeze(2)
-        )
-
-        return decoded_message, representation
+        feature2 = self.third_layer(torch.cat([feature0, feature1], dim=1))
+        feature3 = self.fourth_layer(torch.cat([feature0, feature1, feature2], dim=1))
+        x = self.fivth_layer(feature3)
+        x = self.pooling(x)
+        x = self.linear(x.squeeze_(3).squeeze_(2))
+        return x

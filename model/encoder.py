@@ -76,7 +76,7 @@ class Encoder(nn.Module):
             nn.Softmax(dim=1)
         )
         self.softmax = nn.Sequential(nn.Softmax(dim=1))
-        
+
         self.final_layer = nn.Sequential(nn.Conv2d(config.message_length, 3, kernel_size=3, padding=1),
                                          )
 
@@ -98,10 +98,3 @@ class Encoder(nn.Module):
         im_w = self.final_layer(feature)
         im_w = im_w + image
         return im_w
-
-
-
-
-
-
-

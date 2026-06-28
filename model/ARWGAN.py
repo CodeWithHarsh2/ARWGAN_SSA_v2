@@ -33,8 +33,6 @@ class ARWGAN:
         self.ssim_loss = SSIM()
         self.bce_with_logits_loss = nn.BCEWithLogitsLoss().to(device)
         self.mse_loss = nn.MSELoss().to(device)
-        self.cosine = nn.CosineSimilarity(dim=1)
-        self.consistency_weight = 0.05
         self.adversarial_weight = 0.001
         self.mse_weight = 0.7
         self.ssim_weight = 0.1
@@ -75,13 +73,7 @@ class ARWGAN:
             d_loss_on_cover.backward()
 
             # train on fake
-            (
-                encoded_images,
-                noised_images,
-                decoded_messages,
-                clean_representation,
-                noisy_representation
-            ) = self.encoder_decoder(batch)
+            encoded_images, noised_images, decoded_messages = self.encoder_decoder(batch)
             d_on_encoded = self.discriminator(encoded_images.detach())
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, (d_target_label_encoded).float())
 
@@ -100,25 +92,40 @@ class ARWGAN:
                 vgg_on_cov = self.vgg_loss(images)
                 vgg_on_enc = self.vgg_loss(encoded_images)
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
-            g_loss_enc_ssim = self.ssim_loss(encoded_images, images)
+                g_loss_enc_ssim = self.ssim_loss(encoded_images, images)
+
+            # -------------------------------------------------
+            # Decoder reconstruction loss
+            # -------------------------------------------------
+
             g_loss_dec = self.mse_loss(decoded_messages, messages)
-            clean_flat = clean_representation.flatten(1)
 
-            noisy_flat = noisy_representation.flatten(1)
+            # -------------------------------------------------
+            # Representation Consistency Loss (Stable Version)
+            # -------------------------------------------------
 
-            consistency_loss = (
-                1 -
-                self.cosine(
-                    clean_flat,
-                    noisy_flat
-                ).mean()
+            # Apply a SECOND random attack to the SAME encoded image
+            noised_images_2 = self.encoder_decoder.noiser(
+                [encoded_images.clone(), images]
+            )[0]
+
+            # Decode again
+            decoded_messages_2 = self.encoder_decoder.decoder(noised_images_2)
+
+            # Consistency between decoder outputs
+            consistency_loss = self.mse_loss(
+                decoded_messages,
+                decoded_messages_2.detach()
             )
+
+            # -------------------------------------------------
+
             g_loss = (
                 self.adversarial_weight * g_loss_adv
                 + self.ssim_weight * (1 - g_loss_enc_ssim)
                 + self.mse_weight * g_loss_enc
                 + self.decode_weight * g_loss_dec
-                + self.consistency_weight * consistency_loss
+                + 0.2 * consistency_loss
             )
 
             g_loss.backward()
@@ -129,6 +136,7 @@ class ARWGAN:
         bitwise_avg_err = np.sum(np.abs(decoded_rounded - messages.detach().cpu().numpy())) / (
                 batch_size * messages.shape[1])
 
+        
         losses = {
             'loss           ': g_loss.item(),
             'encoder_mse    ': g_loss_enc.item(),
@@ -138,7 +146,8 @@ class ARWGAN:
             'discr_cover_bce': d_loss_on_cover.item(),
             'discr_encod_bce': d_loss_on_encoded.item(),
             'encoded_ssim   ': g_loss_enc_ssim.item(),
-            'consistency    ': consistency_loss.item()
+            'consistency    ': consistency_loss.item(),
+        
 
         }
         return losses, (encoded_images, noised_images, decoded_messages)
@@ -160,13 +169,7 @@ class ARWGAN:
             d_on_cover = self.discriminator(images)
             d_loss_on_cover = self.bce_with_logits_loss(d_on_cover, d_target_label_cover.float())
 
-            (
-                encoded_images,
-                noised_images,
-                decoded_messages,
-                clean_representation,
-                noisy_representation
-            ) = self.encoder_decoder(batch)
+            encoded_images, noised_images, decoded_messages = self.encoder_decoder(batch)
 
             d_on_encoded = self.discriminator(encoded_images)
             d_loss_on_encoded = self.bce_with_logits_loss(d_on_encoded, d_target_label_encoded.float())
@@ -181,24 +184,8 @@ class ARWGAN:
                 vgg_on_enc = self.vgg_loss(encoded_images)
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
             g_loss_dec = self.mse_loss(decoded_messages, messages)
-            clean_flat = clean_representation.flatten(1)
-
-            noisy_flat = noisy_representation.flatten(1)
-
-            consistency_loss = (
-                1 -
-                self.cosine(
-                    clean_flat,
-                    noisy_flat
-                ).mean()
-            )
-        g_loss = (
-            self.adversarial_weight * g_loss_adv
-            + self.ssim_weight * (1 - g_loss_enc_ssim)
-            + self.mse_weight * g_loss_enc
-            + self.decode_weight * g_loss_dec
-            + self.consistency_weight * consistency_loss
-        )
+            g_loss = self.adversarial_weight * g_loss_adv + self.ssim_weight * (
+                        1 - g_loss_enc_ssim) + self.mse_weight * (g_loss_enc) + self.decode_weight * (g_loss_dec)
         decoded_rounded = decoded_messages.detach().cpu().numpy().round().clip(0, 1)
         bitwise_avg_err = np.sum(np.abs(decoded_rounded - messages.detach().cpu().numpy())) / (
                 batch_size * messages.shape[1])
@@ -214,7 +201,7 @@ class ARWGAN:
             'encoded_ssim   ': g_loss_enc_ssim.item(),
             'PSNR           ': 10 * torch.log10(4 / g_loss_enc).item(),
             'ssim           ': 1 - g_loss_enc_ssim,
-            'consistency    ': consistency_loss.item()
+            'consistency    ': 0.0,
         }
         return losses, (encoded_images, noised_images, decoded_messages)
 
