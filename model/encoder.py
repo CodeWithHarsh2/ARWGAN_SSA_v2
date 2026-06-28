@@ -24,12 +24,7 @@ class Encoder(nn.Module):
         self.H = config.H
         self.W = config.W
         self.conv_channels = config.encoder_channels
-        # ---------- Learned Message Embedding ----------
-        self.message_embedding = nn.Sequential(
-            nn.Linear(config.message_length, 64),
-            nn.ReLU(inplace=True),
-            nn.Linear(64, config.message_length)
-        )
+        self.num_blocks = config.encoder_blocks
 
         self.first_layer = nn.Sequential(
             self.conv2(3, self.conv_channels)
@@ -88,10 +83,8 @@ class Encoder(nn.Module):
     def forward(self, image, message):
         H, W = image.size()[2], image.size()[3]
 
-        embedded_message = self.message_embedding(message)
-
-        expanded_message = embedded_message.unsqueeze(-1)
-        expanded_message = expanded_message.unsqueeze(-1)
+        expanded_message = message.unsqueeze(-1)
+        expanded_message.unsqueeze_(-1)
         expanded_message = expanded_message.expand(-1, -1, H, W)
 
         feature0 = self.first_layer(image)

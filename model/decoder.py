@@ -47,6 +47,19 @@ class Decoder(nn.Module):
         self.fivth_layer = nn.Sequential(self.conv2(self.channels, config.message_length),
                                          nn.BatchNorm2d(config.message_length),
                                          nn.ReLU(inplace=True))
+        
+        # -------- Multi-Level Feature Fusion --------
+        self.fusion = nn.Sequential(
+            nn.Conv2d(
+                self.channels * 3,
+                self.channels,
+                kernel_size=1,
+                stride=1,
+                padding=0
+            ),
+            nn.BatchNorm2d(self.channels),
+            nn.ReLU(inplace=True)
+        )
 
         self.pooling = nn.AdaptiveAvgPool2d(output_size=(1, 1))
         self.linear = nn.Linear(config.message_length, config.message_length)
