@@ -85,15 +85,15 @@ class ARWGAN:
             d_on_encoded_for_enc = self.discriminator(encoded_images)
             g_loss_adv = self.bce_with_logits_loss(d_on_encoded_for_enc.float(), g_target_label_encoded.float())
 
-            if self.vgg_loss == None:
+            if self.vgg_loss is None:
                 g_loss_enc = self.mse_loss(encoded_images, images)
-
             else:
                 vgg_on_cov = self.vgg_loss(images)
                 vgg_on_enc = self.vgg_loss(encoded_images)
                 g_loss_enc = self.mse_loss(vgg_on_cov, vgg_on_enc)
-                g_loss_enc_ssim = self.ssim_loss(encoded_images, images)
 
+            # ALWAYS COMPUTE THIS
+            g_loss_enc_ssim = self.ssim_loss(encoded_images, images)
             # -------------------------------------------------
             # Decoder reconstruction loss
             # -------------------------------------------------
