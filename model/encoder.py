@@ -76,7 +76,6 @@ class Encoder(nn.Module):
             nn.Softmax(dim=1)
         )
         self.softmax = nn.Sequential(nn.Softmax(dim=1))
-
         # --------------------------------------------------
         # Feature-wise Message Modulation (FiLM)
         # --------------------------------------------------
@@ -93,7 +92,7 @@ class Encoder(nn.Module):
         feature0 = self.first_layer(image)
 
         # --------------------------------------------------
-        # FiLM conditioning
+        # Feature-wise Message Modulation (FiLM)
         # --------------------------------------------------
         film = self.film(message)
 
@@ -102,12 +101,14 @@ class Encoder(nn.Module):
         gamma = gamma.unsqueeze(-1).unsqueeze(-1)
         beta = beta.unsqueeze(-1).unsqueeze(-1)
 
-        # Residual initialization
+        # Residual FiLM modulation
         feature0 = feature0 * (1.0 + 0.1 * torch.tanh(gamma)) + 0.1 * beta
 
         expanded_message = message.unsqueeze(-1)
         expanded_message = expanded_message.unsqueeze(-1)
         expanded_message = expanded_message.expand(-1, -1, H, W)
+
+        feature0 = self.first_layer(image)
         feature1 = self.Dense_block1(torch.cat((feature0, expanded_message), 1), last=True)
         feature2 = self.Dense_block2(torch.cat((feature0, expanded_message, feature1), 1), last=True)
         feature3 = self.Dense_block3(torch.cat((feature0, expanded_message, feature1, feature2), 1), last=True)
