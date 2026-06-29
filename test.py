@@ -11,6 +11,9 @@ from noise_layers.noiser import Noiser
 from PIL import Image
 import torchvision.transforms.functional as TF
 
+import pandas as pd
+
+
 
 def randomCrop(img, height, width):
     assert img.shape[0] >= height
@@ -34,6 +37,39 @@ def yuv_psnr(img):
     imgu = -0.14713 * img[:, 0, :, :] + (-0.28886) * img[:, 1, :, :] + 0.436 * img[:, 2:, :, :]
     imgv = 0.615 * img[:, 0, :, :] + -0.51499 * img[:, 1, :, :] + (-0.10001) * img[:, 2:, :, :]
     return imgy, imgu, imgv
+
+def bit_accuracy(decoded, gt):
+    decoded = decoded.round().clip(0,1)
+    return np.mean(decoded == gt)
+
+
+def ber(decoded, gt):
+    decoded = decoded.round().clip(0,1)
+    return np.mean(np.abs(decoded-gt))
+
+
+def mse(img1,img2):
+    return np.mean((img1-img2)**2)
+
+
+def psnr(img1,img2):
+    m = mse(img1,img2)
+
+    if m==0:
+        return 100
+
+    return 20*np.log10(2.0/np.sqrt(m))
+
+
+def ncc(decoded,gt):
+
+    decoded=decoded.flatten()
+    gt=gt.flatten()
+
+    decoded=decoded-decoded.mean()
+    gt=gt-gt.mean()
+
+    return np.sum(decoded*gt)/(np.sqrt(np.sum(decoded**2))*np.sqrt(np.sum(gt**2))+1e-8)
 
 
 def main():
@@ -66,34 +102,74 @@ def main():
     utils.model_from_checkpoint(hidden_net, checkpoint)
     source_images = os.listdir(args.source_images)
 
-    total_error = 0
-    count = 0
+    results=[]
+
     for source_image in source_images:
-        image_pil = Image.open(os.path.join(args.source_images, source_image))
-        image_pil = image_pil.resize((net_config.H, net_config.W))
-        image_tensor = TF.to_tensor(image_pil).to(device)
-        image_tensor = image_tensor * 2 - 1
-        image_tensor.unsqueeze_(0)
-        np.random.seed(42)
-        message = torch.Tensor(np.random.choice([0, 1], (image_tensor.shape[0],
-                                                         net_config.message_length))).to(device)
 
-        losses, (encoded_images, noised_images, decoded_messages) = hidden_net.validate_on_batch(
-            [image_tensor, message])
+        image_pil=Image.open(
+            os.path.join(args.source_images,source_image)
+        ).convert("RGB")
 
-        decoded_rounded = decoded_messages.detach().cpu().numpy().round().clip(0, 1)
-        message_detached = message.detach().cpu().numpy()
-        print('original: {}'.format(message_detached))
-        print('decoded : {}'.format(decoded_rounded))
-        err = np.mean(np.abs(decoded_rounded - message_detached))
-        print('error : {:.3f}'.format(err))
+        image_pil=image_pil.resize(
+            (net_config.W,net_config.H)
+        )
 
-        total_error += err
-        count += 1
-    
-    print("\nAverage BER:", total_error / count)
+        image_tensor=TF.to_tensor(image_pil).to(device)
+
+        image_tensor=image_tensor*2-1
+
+        image_tensor=image_tensor.unsqueeze(0)
+
+        message=torch.Tensor(
+            np.random.choice(
+                [0,1],
+                (1,net_config.message_length)
+            )
+        ).to(device)
+
+        losses,(encoded,noised,decoded)=hidden_net.validate_on_batch(
+            [image_tensor,message]
+        )
+
+        decoded_np=decoded.detach().cpu().numpy()
+
+        gt=message.cpu().numpy()
+
+        enc=encoded.detach().cpu().numpy()
+
+        cover=image_tensor.cpu().numpy()
+
+        results.append({
+
+            "Image":source_image,
+
+            "BER":ber(decoded_np,gt),
+
+            "Accuracy":bit_accuracy(decoded_np,gt),
+
+            "PSNR":psnr(enc,cover),
+
+            "SSIM":losses["encoded_ssim   "],
+
+            "NCC":ncc(decoded_np,gt),
+
+            "MSE":mse(enc,cover)
+
+        })
 
     #utils.save_images(image_tensor.cpu(), encoded_images.cpu(), 'test', '.', resize_to=(128, 128))
+
+    df=pd.DataFrame(results)
+
+    print(df)
+
+    print()
+
+    print(df.mean(numeric_only=True))
+
+    df.to_csv("evaluation_results.csv",index=False)
+
+    print("Saved evaluation_results.csv")
 
 
 if __name__ == '__main__':
